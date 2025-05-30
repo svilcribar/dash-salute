@@ -43,7 +43,7 @@ if turni_file and servizi_file:
     df_turni['Inizio'] = pd.to_datetime(df_turni['Data'].astype(str) + ' ' + df_turni['Inizio_str'], errors='coerce')
     df_turni['Fine'] = pd.to_datetime(df_turni['Data'].astype(str) + ' ' + df_turni['Fine_str'], errors='coerce')
     df_turni['Durata (h)'] = (df_turni['Fine'] - df_turni['Inizio']).dt.total_seconds() / 3600
-    df_turni['Categoria Pulita'] = df_turni['Categoria'].str.extract(r"\\[(.*?)\\]")
+    df_turni['Categoria Pulita'] = df_turni['Categoria'].str.extract(r"\[(.*?)\]")
 
     if df_turni['Inizio'].isnull().any():
         st.warning("⚠️ Alcune righe dei turni hanno problemi di orario. Controlla i valori in 'Inizio'.")
@@ -55,7 +55,7 @@ if turni_file and servizi_file:
     df_servizi['[P]Ore'] = pd.to_datetime(df_servizi['Data'].astype(str) + ' ' + df_servizi['P_str'], errors='coerce')
     df_servizi['[A]Ore'] = pd.to_datetime(df_servizi['Data'].astype(str) + ' ' + df_servizi['A_str'], errors='coerce')
     df_servizi['Durata (min)'] = (df_servizi['[A]Ore'] - df_servizi['[P]Ore']).dt.total_seconds() / 60
-    df_servizi['Categoria Servizio'] = df_servizi['Intervento'].str.extract(r"\\[(.*?)\\]")
+    df_servizi['Categoria Servizio'] = df_servizi['Intervento'].str.extract(r"\[(.*?)\]")
 
     if df_servizi['[P]Ore'].isnull().any():
         st.warning("⚠️ Alcuni orari di partenza non sono validi. Controlla '[P]Ore'.")
