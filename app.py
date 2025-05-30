@@ -1,102 +1,112 @@
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-from datetime import datetime
 import numpy as np
+import matplotlib.pyplot as plt
+from datetime import datetime, timedelta
 
-# --- CONFIG ---
-st.set_page_config(page_title="Dashboard KPI", layout="wide")
+# --- URL dei dati ---
+URL_SERVIZI = "https://docs.google.com/spreadsheets/d/1lBUcDna2q8tnSBESFHBGLMLRtg3MSp0yCY3eheDvPoU/export?format=csv"
+URL_TURNI = "https://docs.google.com/spreadsheets/d/1gnbV3CsLLcPoUzBqqntFJmWyTO-zx7NUCLJy0ThuH9A/export?format=csv"
 
-# --- FUNZIONI ---
-@st.cache_data
+# --- Lettura file ---
+df_servizi = pd.read_csv(URL_SERVIZI)
+df_turni = pd.read_csv(URL_TURNI)
 
-def carica_dati():
-    URL_SERVIZI = "https://docs.google.com/spreadsheets/d/1lBUcDna2q8tnSBESFHBGLMLRtg3MSp0yCY3eheDvPoU/export?format=csv"
-    URL_TURNI = "https://docs.google.com/spreadsheets/d/1gnbV3CsLLcPoUzBqqntFJmWyTO-zx7NUCLJy0ThuH9A/export?format=csv"
+# --- Pre-processing SERVIZI ---
+df_servizi["Data"] = pd.to_datetime(df_servizi["Data"], dayfirst=True, errors='coerce')
+df_servizi["[P]Ore"] = pd.to_datetime(df_servizi["[P]Ore"], format="%H:%M", errors='coerce').dt.time
+df_servizi["[A]Ore"] = pd.to_datetime(df_servizi["[A]Ore"], format="%H:%M", errors='coerce').dt.time
+df_servizi["Durata (min)"] = (
+    pd.to_datetime(df_servizi["[A]Ore"].astype(str)) - pd.to_datetime(df_servizi["[P]Ore"].astype(str))
+).dt.total_seconds() / 60
+df_servizi["Categoria"] = df_servizi["Intervento"].str.extract(r"\[(.*?)\]")
 
-    df_serv = pd.read_csv(URL_SERVIZI)
-    df_turni = pd.read_csv(URL_TURNI)
+# --- Pre-processing TURNI ---
+df_turni["Data"] = pd.to_datetime(df_turni["Data"], dayfirst=True, errors='coerce')
+df_turni["Inizio"] = pd.to_datetime(df_turni["Inizio"], format="%H:%M", errors='coerce').dt.time
+df_turni["Fine"] = pd.to_datetime(df_turni["Fine"], format="%H:%M", errors='coerce').dt.time
+df_turni["Categoria"] = df_turni["Categoria"].str.extract(r"\[(.*?)\]")
 
-    df_serv['Data'] = pd.to_datetime(df_serv['Data'], errors='coerce')
-    df_turni['Data'] = pd.to_datetime(df_turni['Data'], errors='coerce')
+# --- Mapping categorie ---
+categoria_map = {
+    "UFF": "UFFICIO",
+    "ORDINARIO": "ORDINARI",
+    "INTERNI": "INTERNI",
+    "EMERGENZA": "EMERG",
+    "PRIVATO": "PRIVATI",
+    "SOC": "SOC",
+    "GEN": "FORMAZIONE",
+    "TSSA-APS": "TSSA",
+    "TS": "TS",
+    "POLI": "POLIAMB",
+}
+df_turni["Categoria Simplificata"] = df_turni["Categoria"].map(categoria_map).fillna("ALTRO")
+df_servizi["Categoria Simplificata"] = df_servizi["Categoria"].map(categoria_map).fillna("ALTRO")
 
-    df_turni['Inizio'] = pd.to_datetime(df_turni['Inizio'], errors='coerce').dt.time
-    df_turni['Fine'] = pd.to_datetime(df_turni['Fine'], errors='coerce').dt.time
-    df_turni = df_turni.dropna(subset=['Inizio', 'Fine'])
+# --- Intervallo Date ---
+min_date = max(df_servizi["Data"].min(), df_turni["Data"].min())
+max_date = min(df_servizi["Data"].max(), df_turni["Data"].max())
+data_range = st.sidebar.date_input("Intervallo Date", [min_date, max_date])
 
-    # Calcolo durata in ore per i turni
-    df_turni['Durata'] = df_turni.apply(lambda row: (
-        datetime.combine(datetime.today(), row['Fine']) - datetime.combine(datetime.today(), row['Inizio'])).seconds / 3600, axis=1)
+start_date, end_date = data_range
+df_servizi_filtered = df_servizi[(df_servizi["Data"] >= start_date) & (df_servizi["Data"] <= end_date)]
+df_turni_filtered = df_turni[(df_turni["Data"] >= start_date) & (df_turni["Data"] <= end_date)]
 
-    # Calcolo durata servizio in ore
-    df_serv['[P]Ore'] = pd.to_datetime(df_serv['[P]Ore'], errors='coerce')
-    df_serv['[A]Ore'] = pd.to_datetime(df_serv['[A]Ore'], errors='coerce')
-    df_serv['Durata_serv'] = (df_serv['[A]Ore'] - df_serv['[P]Ore']).dt.total_seconds() / 3600
+# --- KPI Turni ---
+st.header("🔁 KPI Turni")
 
-    return df_serv, df_turni
+turni_count = len(df_turni_filtered)
+ore_disponibili = (
+    pd.to_datetime(df_turni_filtered["Fine"].astype(str)) -
+    pd.to_datetime(df_turni_filtered["Inizio"].astype(str))
+).dt.total_seconds() / 3600
+media_ore_per_turno = ore_disponibili.mean()
+media_turni_per_giorno = turni_count / ((end_date - start_date).days + 1)
 
-def extract_categoria(turno_str):
-    import re
-    match = re.search(r'\[(.*?)\]', str(turno_str))
-    return match.group(1) if match else 'ALTRO'
+st.metric("Totale Turni", turni_count)
+st.metric("Media Ore per Turno", f"{media_ore_per_turno:.2f}")
+st.metric("Media Turni per Giorno", f"{media_turni_per_giorno:.2f}")
 
-# --- CARICAMENTO DATI ---
-df_serv, df_turni = carica_dati()
-df_turni['Categoria'] = df_turni['Turno'].apply(extract_categoria)
+# --- Grafico Turni per Categoria ---
+st.subheader("Turni per Categoria (semplificata)")
+turni_cat = df_turni_filtered["Categoria Simplificata"].value_counts().sort_values(ascending=False)
+fig1, ax1 = plt.subplots()
+turni_cat.plot(kind="bar", ax=ax1, color="skyblue")
+st.pyplot(fig1)
 
-# --- SIDEBAR FILTRI ---
-with st.sidebar:
-    st.title("Filtri")
-    data_min = max(df_serv['Data'].min(), df_turni['Data'].min())
-    data_max = min(df_serv['Data'].max(), df_turni['Data'].max())
-    start_date, end_date = st.date_input("Intervallo date", [data_min, data_max])
+# --- KPI Servizi ---
+st.header("🚑 KPI Servizi")
 
-# --- FILTRAGGIO DATI ---
-df_serv_f = df_serv[(df_serv['Data'] >= pd.to_datetime(start_date)) & (df_serv['Data'] <= pd.to_datetime(end_date))]
-df_turni_f = df_turni[(df_turni['Data'] >= pd.to_datetime(start_date)) & (df_turni['Data'] <= pd.to_datetime(end_date))]
+tot_servizi = len(df_servizi_filtered)
+tot_km = df_servizi_filtered["Km effet."].sum()
+media_km_servizio = df_servizi_filtered["Km effet."].mean()
+media_servizi_per_giorno = tot_servizi / ((end_date - start_date).days + 1)
+tempo_medio_min = df_servizi_filtered["Durata (min)"].mean()
 
-# --- KPI TURNI ---
-st.header("\U0001F501 KPI sui Turni")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Totale Turni", len(df_turni_f))
-col2.metric("Ore Totali Disponibili", round(df_turni_f['Durata'].sum(), 1))
-col3.metric("Media Ore per Turno", round(df_turni_f['Durata'].mean(), 2))
-col4.metric("Media Turni per Giorno", round(len(df_turni_f) / (end_date - start_date).days, 2))
+st.metric("Totale Servizi", tot_servizi)
+st.metric("Media Km per Servizio", f"{media_km_servizio:.1f} km")
+st.metric("Media Servizi per Giorno", f"{media_servizi_per_giorno:.2f}")
+st.metric("Tempo Medio per Servizio", f"{tempo_medio_min:.1f} minuti")
 
-# --- GRAFICO TURNI PER CATEGORIA ---
-kpi_turni_cat = df_turni_f.groupby('Categoria')['Durata'].sum().reset_index()
-kpi_turni_cat = kpi_turni_cat.sort_values(by='Durata', ascending=False)
+# --- Grafico Servizi per Categoria Semplificata ---
+st.subheader("Servizi per Categoria (semplificata)")
+servizi_cat = df_servizi_filtered["Categoria Simplificata"].value_counts().sort_values(ascending=False)
+fig2, ax2 = plt.subplots()
+servizi_cat.plot(kind="bar", ax=ax2, color="salmon")
+st.pyplot(fig2)
 
-fig_turni = px.bar(kpi_turni_cat, x='Categoria', y='Durata', title="Ore Turno per Categoria", text_auto=True)
-st.plotly_chart(fig_turni, use_container_width=True)
-
-# --- KPI SERVIZI ---
-st.header("\U0001F691 KPI sui Servizi")
-col1, col2, col3, col4 = st.columns(4)
-col1.metric("Totale Servizi", len(df_serv_f))
-col2.metric("Media Durata Servizio (h)", round(df_serv_f['Durata_serv'].mean(), 2))
-col3.metric("Km Totali", int(df_serv_f['Km effet.'].sum()))
-col4.metric("Media Km/Servizio", round(df_serv_f['Km effet.'].mean(), 1))
-
-# --- GRAFICO SERVIZI PER GIORNO ---
-df_serv_f['Giorno'] = df_serv_f['Data'].dt.day_name(locale='it_IT')
-giorni = pd.CategoricalDtype(
-    ['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato', 'Domenica'], ordered=True)
-df_serv_f['Giorno'] = df_serv_f['Giorno'].astype(giorni)
-
-fig_giorni = px.histogram(df_serv_f, x='Giorno', title="Distribuzione Servizi per Giorno")
-st.plotly_chart(fig_giorni, use_container_width=True)
-
-# --- KPI CORRELATI (SOLO SE <= 31 GIORNI) ---
+# --- KPI Correlati Turni / Servizi ---
 if (end_date - start_date).days <= 31:
-    st.header("\U0001F501 KPI Correlati Turni/Servizi")
-    servizi_per_giorno = df_serv_f.groupby('Data').size()
-    turni_per_giorno = df_turni_f.groupby('Data').size()
-    kpi_corr = pd.DataFrame({
-        'Servizi': servizi_per_giorno,
-        'Turni': turni_per_giorno
-    }).fillna(0)
-    kpi_corr['Servizi/Turno'] = kpi_corr['Servizi'] / kpi_corr['Turni'].replace(0, np.nan)
+    st.header("🔄 KPI Correlati (entro 31gg)")
 
-    st.line_chart(kpi_corr[['Servizi', 'Turni']])
-    st.bar_chart(kpi_corr['Servizi/Turno'])
+    servizi_per_giorno = df_servizi_filtered.groupby("Data").size()
+    turni_per_giorno = df_turni_filtered.groupby("Data").size()
+    joined = pd.concat([servizi_per_giorno, turni_per_giorno], axis=1)
+    joined.columns = ["Servizi", "Turni"]
+    joined["Rapporto"] = joined["Servizi"] / joined["Turni"]
+
+    fig3, ax3 = plt.subplots()
+    joined["Rapporto"].plot(ax=ax3, marker='o', linestyle='-')
+    ax3.set_ylabel("Servizi per Turno")
+    ax3.set_title("Rapporto Servizi / Turni (giornaliero)")
+    st.pyplot(fig3)
