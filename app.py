@@ -48,7 +48,8 @@ min_date = max(df_servizi["Data"].min(), df_turni["Data"].min())
 max_date = min(df_servizi["Data"].max(), df_turni["Data"].max())
 data_range = st.sidebar.date_input("Intervallo Date", [min_date, max_date])
 
-start_date, end_date = data_range
+start_date = pd.to_datetime(data_range[0])
+end_date = pd.to_datetime(data_range[1])
 df_servizi_filtered = df_servizi[(df_servizi["Data"] >= start_date) & (df_servizi["Data"] <= end_date)]
 df_turni_filtered = df_turni[(df_turni["Data"] >= start_date) & (df_turni["Data"] <= end_date)]
 
