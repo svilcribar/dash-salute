@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Dashboard Volontariato", layout="wide")
 
-st.title("\ud83c\udfdb\ufe0f Dashboard Attivit\u00e0 Associazione di Volontariato")
+st.title(" Dashboard Attivita Associazione di Volontariato")
 
 # --- Upload file ---
 turni_file = st.file_uploader("Carica il file dei Turni", type=["xlsx"])
