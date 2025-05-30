@@ -64,9 +64,21 @@ if turni_file and servizi_file:
 
     # Filtri
     st.sidebar.header("\U0001F50D Filtri")
-    min_data = min(df_turni['Inizio'].min(), df_servizi['[P]Ore'].min())
-    max_data = max(df_turni['Fine'].max(), df_servizi['[A]Ore'].max())
-    data_range = st.sidebar.date_input("Intervallo Date", [min_data.date(), max_data.date()])
+    # Rimuove i NaT prima di calcolare min/max
+    valid_inizio = df_turni['Inizio'].dropna()
+    valid_fine = df_turni['Fine'].dropna()
+    valid_pore = df_servizi['[P]Ore'].dropna()
+    valid_aore = df_servizi['[A]Ore'].dropna()
+    
+    # Solo se abbiamo almeno un valore valido per ciascuna
+    if not valid_inizio.empty and not valid_pore.empty and not valid_fine.empty and not valid_aore.empty:
+        min_data = min(valid_inizio.min(), valid_pore.min())
+        max_data = max(valid_fine.max(), valid_aore.max())
+    
+        data_range = st.sidebar.date_input("Intervallo Date", [min_data.date(), max_data.date()])
+    else:
+        st.error("❌ Errore nei dati di data/ora. Alcuni campi non sono interpretabili.")
+        st.stop()
 
     tipi_servizio = st.sidebar.multiselect("Tipo Servizio", options=sorted(df_servizi['Categoria Servizio'].dropna().unique()))
     mezzi = st.sidebar.multiselect("Automezzo", options=sorted(df_servizi['Automezzo'].dropna().unique()))
