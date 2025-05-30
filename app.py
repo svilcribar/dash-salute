@@ -36,8 +36,11 @@ df_turni['Durata (h)'] = (df_turni['Fine'] - df_turni['Inizio']).dt.total_second
 # Categoria pulita (se formato "[xxx]")
 df_turni['Categoria Pulita'] = df_turni['Categoria'].str.extract(r"\[(.*?)\]")
 
-if df_turni['Inizio'].isnull().any():
-    st.warning("⚠️ Alcune righe dei turni hanno problemi di orario. Controlla i valori in 'Inizio'.")
+# Righe con problemi di parsing in 'Inizio' o 'Fine'
+righe_turni_non_valide = df_turni[df_turni['Inizio'].isnull() | df_turni['Fine'].isnull()]
+if not righe_turni_non_valide.empty:
+    st.warning("⚠️ Alcune righe dei turni hanno problemi di orario. Controlla i valori in 'Inizio' e 'Fine'.")
+    st.dataframe(righe_turni_non_valide)
 
 # --- Preprocessing SERVIZI ---
 df_servizi['Data'] = pd.to_datetime(df_servizi['Data'], errors='coerce')
@@ -55,11 +58,17 @@ df_servizi['[A]Ore'] = pd.to_datetime(df_servizi['Data'].astype(str) + ' ' + df_
 df_servizi['Durata (min)'] = (df_servizi['[A]Ore'] - df_servizi['[P]Ore']).dt.total_seconds() / 60
 df_servizi['Categoria Servizio'] = df_servizi['Intervento'].str.extract(r"\[(.*?)\]")
 
-if df_servizi['[P]Ore'].isnull().any():
+# Righe con problemi in orario partenza
+righe_partenza_non_valide = df_servizi[df_servizi['[P]Ore'].isnull()]
+if not righe_partenza_non_valide.empty:
     st.warning("⚠️ Alcuni orari di partenza non sono validi. Controlla '[P]Ore'.")
+    st.dataframe(righe_partenza_non_valide)
 
-if df_servizi['[A]Ore'].isnull().any():
+# Righe con problemi in orario arrivo
+righe_arrivo_non_valide = df_servizi[df_servizi['[A]Ore'].isnull()]
+if not righe_arrivo_non_valide.empty:
     st.warning("⚠️ Alcuni orari di arrivo non sono validi. Controlla '[A]Ore'.")
+    st.dataframe(righe_arrivo_non_valide)
 
 # --- Filtri ---
 st.sidebar.header("🔍 Filtri")
