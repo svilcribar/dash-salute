@@ -48,11 +48,31 @@ df_servizi["Categoria Simplificata"] = df_servizi["Categoria"].map(categoria_map
 min_date = max(df_servizi["Data"].min(), df_turni["Data"].min())
 max_date = min(df_servizi["Data"].max(), df_turni["Data"].max())
 data_range = st.sidebar.date_input("Intervallo Date", [min_date, max_date])
-
 start_date = pd.to_datetime(data_range[0])
 end_date = pd.to_datetime(data_range[1])
-df_servizi_filtered = df_servizi[(df_servizi["Data"] >= start_date) & (df_servizi["Data"] <= end_date)]
+
+# --- Filtri aggiuntivi ---
+mezzi_disponibili = df_servizi["Automezzo"].dropna().unique()
+mezzo_selezionato = st.sidebar.multiselect("Filtro per Automezzo", sorted(mezzi_disponibili))
+
+tipi_servizio = df_servizi["Categoria Simplificata"].dropna().unique()
+categoria_selezionata = st.sidebar.multiselect("Filtro per Categoria Servizio", sorted(tipi_servizio))
+
+# --- Filtro dataframe servizi ---
+df_servizi_filtered = df_servizi[
+    (df_servizi["Data"] >= start_date) &
+    (df_servizi["Data"] <= end_date)
+]
+
+if mezzo_selezionato:
+    df_servizi_filtered = df_servizi_filtered[df_servizi_filtered["Automezzo"].isin(mezzo_selezionato)]
+
+if categoria_selezionata:
+    df_servizi_filtered = df_servizi_filtered[df_servizi_filtered["Categoria Simplificata"].isin(categoria_selezionata)]
+
+# --- Filtro dataframe turni ---
 df_turni_filtered = df_turni[(df_turni["Data"] >= start_date) & (df_turni["Data"] <= end_date)]
+
 
 # --- KPI TURNI ---
 st.header("🔁 KPI Turni")
