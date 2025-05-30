@@ -16,29 +16,27 @@ if turni_file and servizi_file:
 
     # --- Preprocessing Turni ---
     df_turni['Data'] = pd.to_datetime(df_turni['Data'], errors='coerce')
-
-    df_turni['Inizio'] = df_turni.apply(
-        lambda row: datetime.combine(row['Data'].date(), row['Inizio']) if pd.notnull(row['Inizio']) else pd.NaT,
-        axis=1
-    )
-    df_turni['Fine'] = df_turni.apply(
-        lambda row: datetime.combine(row['Data'].date(), row['Fine']) if pd.notnull(row['Fine']) else pd.NaT,
-        axis=1
-    )
+    
+    # Converti orari in stringhe e normalizza il formato (es. 8 -> 08:00)
+    df_turni['Inizio_str'] = df_turni['Inizio'].astype(str).str.strip().str.replace(r'^(\d{1,2})$', r'\1:00', regex=True)
+    df_turni['Fine_str'] = df_turni['Fine'].astype(str).str.strip().str.replace(r'^(\d{1,2})$', r'\1:00', regex=True)
+    
+    # Combina data e orario in stringa, poi converte in datetime
+    df_turni['Inizio'] = pd.to_datetime(df_turni['Data'].dt.strftime('%Y-%m-%d') + ' ' + df_turni['Inizio_str'], errors='coerce')
+    df_turni['Fine'] = pd.to_datetime(df_turni['Data'].dt.strftime('%Y-%m-%d') + ' ' + df_turni['Fine_str'], errors='coerce')
+    
     df_turni['Durata (h)'] = (df_turni['Fine'] - df_turni['Inizio']).dt.total_seconds() / 3600
     df_turni['Categoria Pulita'] = df_turni['Categoria'].str.extract(r"\[(.*?)\]")
-
+    
     # --- Preprocessing Servizi ---
     df_servizi['Data'] = pd.to_datetime(df_servizi['Data'], errors='coerce')
-
-    df_servizi['[P]Ore'] = df_servizi.apply(
-        lambda row: datetime.combine(row['Data'].date(), row['[P]Ore']) if pd.notnull(row['[P]Ore']) else pd.NaT,
-        axis=1
-    )
-    df_servizi['[A]Ore'] = df_servizi.apply(
-        lambda row: datetime.combine(row['Data'].date(), row['[A]Ore']) if pd.notnull(row['[A]Ore']) else pd.NaT,
-        axis=1
-    )
+    
+    df_servizi['P_str'] = df_servizi['[P]Ore'].astype(str).str.strip().str.replace(r'^(\d{1,2})$', r'\1:00', regex=True)
+    df_servizi['A_str'] = df_servizi['[A]Ore'].astype(str).str.strip().str.replace(r'^(\d{1,2})$', r'\1:00', regex=True)
+    
+    df_servizi['[P]Ore'] = pd.to_datetime(df_servizi['Data'].dt.strftime('%Y-%m-%d') + ' ' + df_servizi['P_str'], errors='coerce')
+    df_servizi['[A]Ore'] = pd.to_datetime(df_servizi['Data'].dt.strftime('%Y-%m-%d') + ' ' + df_servizi['A_str'], errors='coerce')
+    
     df_servizi['Durata (min)'] = (df_servizi['[A]Ore'] - df_servizi['[P]Ore']).dt.total_seconds() / 60
     df_servizi['Categoria Servizio'] = df_servizi['Intervento'].str.extract(r"\[(.*?)\]")
 
