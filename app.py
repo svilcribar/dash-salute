@@ -28,7 +28,7 @@ if turni_file and servizi_file:
     df_servizi['Categoria Servizio'] = df_servizi['Intervento'].str.extract(r"\[(.*?)\]")
 
     # --- Filtri ---
-    st.sidebar.header("\ud83d\udd0d Filtri")
+    st.sidebar.header(" Filtri")
 
     min_data = min(df_turni['Inizio'].min(), df_servizi['[P]Ore'].min())
     max_data = max(df_turni['Fine'].max(), df_servizi['[A]Ore'].max())
@@ -58,7 +58,7 @@ if turni_file and servizi_file:
     col4.metric("\ud83d\ude97 Km Totali", int(df_servizi_filt['Km effet.'].sum()))
 
     # --- Grafici ---
-    st.subheader("\ud83d\udcca Distribuzione per Categoria")
+    st.subheader(" Distribuzione per Categoria")
     col5, col6 = st.columns(2)
 
     with col5:
@@ -66,7 +66,7 @@ if turni_file and servizi_file:
     with col6:
         st.bar_chart(df_servizi_filt['Categoria Servizio'].value_counts())
 
-    st.subheader("\ud83d\udcc5 Servizi per Giorno della Settimana")
+    st.subheader(" Servizi per Giorno della Settimana")
     st.bar_chart(df_servizi_filt['GG'].value_counts().reindex(["LUN","MAR","MER","GIO","VEN","SAB","DOM"]))
 
 else:
