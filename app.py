@@ -6,8 +6,8 @@ st.set_page_config(page_title="Dashboard Volontariato", layout="wide")
 st.title("📊 Dashboard Attività Associazione di Volontariato")
 
 # --- Link ai Google Sheets (in formato CSV) ---
-URL_TURNI = "https://docs.google.com/spreadsheets/d/1lBUcDna2q8tnSBESFHBGLMLRtg3MSp0yCY3eheDvPoU/export?format=csv"
-URL_SERVIZI = "https://docs.google.com/spreadsheets/d/1gnbV3CsLLcPoUzBqqntFJmWyTO-zx7NUCLJy0ThuH9A/export?format=csv"
+URL_SERVIZI = "https://docs.google.com/spreadsheets/d/1lBUcDna2q8tnSBESFHBGLMLRtg3MSp0yCY3eheDvPoU/export?format=csv"
+URL_TURNI = "https://docs.google.com/spreadsheets/d/1gnbV3CsLLcPoUzBqqntFJmWyTO-zx7NUCLJy0ThuH9A/export?format=csv"
 
 # --- Caricamento dei dati ---
 try:
