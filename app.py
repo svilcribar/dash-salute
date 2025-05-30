@@ -1,103 +1,78 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 
-st.set_page_config(layout="wide")
-
-# --- URL dei Google Sheets (in formato CSV) ---
+# === URL Google Sheets ===
 URL_SERVIZI = "https://docs.google.com/spreadsheets/d/1lBUcDna2q8tnSBESFHBGLMLRtg3MSp0yCY3eheDvPoU/export?format=csv"
 URL_TURNI = "https://docs.google.com/spreadsheets/d/1gnbV3CsLLcPoUzBqqntFJmWyTO-zx7NUCLJy0ThuH9A/export?format=csv"
 
-# --- Funzioni di supporto ---
-def parse_orario(value):
+# === Funzioni di parsing sicuro ===
+def parse_ora(ora):
     try:
-        return datetime.strptime(str(value).strip(), "%H:%M").time()
+        return datetime.strptime(ora.strip(), "%H:%M").time()
     except:
         return None
 
-def parse_data(value):
+def parse_data(data):
     try:
-        return pd.to_datetime(value).date()
+        return pd.to_datetime(data, dayfirst=True)
     except:
-        return None
+        return pd.NaT
 
-# --- Caricamento dati ---
+# === Caricamento dati ===
 @st.cache_data
-
-def carica_dati():
+def load_data():
     df_turni = pd.read_csv(URL_TURNI)
     df_servizi = pd.read_csv(URL_SERVIZI)
+
+    # Parse dati e orari nei turni
+    df_turni['Data'] = df_turni['Data'].apply(parse_data)
+    df_turni['Inizio'] = df_turni['Inizio'].astype(str).apply(parse_ora)
+    df_turni['Fine'] = df_turni['Fine'].astype(str).apply(parse_ora)
+    df_turni = df_turni.dropna(subset=['Data', 'Inizio', 'Fine'])
+    df_turni['Start'] = df_turni.apply(lambda row: datetime.combine(row['Data'], row['Inizio']), axis=1)
+    df_turni['End'] = df_turni.apply(lambda row: datetime.combine(row['Data'], row['Fine']) if row['Fine'] > row['Inizio'] else datetime.combine(row['Data'], row['Fine']) + timedelta(days=1), axis=1)
+    df_turni['Durata'] = (df_turni['End'] - df_turni['Start']).dt.total_seconds() / 3600
+
+    # Parse dati nei servizi
+    df_servizi['Data'] = df_servizi['Data'].apply(parse_data)
+    df_servizi['[P]Ore'] = df_servizi['[P]Ore'].astype(str).apply(parse_ora)
+    df_servizi['[A]Ore'] = df_servizi['[A]Ore'].astype(str).apply(parse_ora)
+    df_servizi = df_servizi.dropna(subset=['Data', '[P]Ore', '[A]Ore'])
+    df_servizi['Start'] = df_servizi.apply(lambda row: datetime.combine(row['Data'], row['[P]Ore']), axis=1)
+    df_servizi['End'] = df_servizi.apply(lambda row: datetime.combine(row['Data'], row['[A]Ore']) if row['[A]Ore'] > row['[P]Ore'] else datetime.combine(row['Data'], row['[A]Ore']) + timedelta(days=1), axis=1)
+    df_servizi['Durata'] = (df_servizi['End'] - df_servizi['Start']).dt.total_seconds() / 3600
+
     return df_turni, df_servizi
 
-df_turni, df_servizi = carica_dati()
+df_turni, df_servizi = load_data()
 
-# --- Pulizia df_turni ---
-df_turni['Inizio'] = df_turni['Inizio'].apply(parse_orario)
-df_turni['Fine'] = df_turni['Fine'].apply(parse_orario)
-df_turni['Data'] = df_turni['Data'].apply(parse_data)
-
-df_turni['Inizio_completo'] = df_turni.apply(
-    lambda row: datetime.combine(row['Data'], row['Inizio']) if pd.notnull(row['Data']) and pd.notnull(row['Inizio']) else pd.NaT,
-    axis=1
-)
-df_turni['Fine_completo'] = df_turni.apply(
-    lambda row: datetime.combine(row['Data'], row['Fine']) if pd.notnull(row['Data']) and pd.notnull(row['Fine']) else pd.NaT,
-    axis=1
-)
-# Aggiusta fine oltre la mezzanotte
-mask_fine_mezzanotte = df_turni['Fine_completo'] < df_turni['Inizio_completo']
-df_turni.loc[mask_fine_mezzanotte, 'Fine_completo'] += timedelta(days=1)
-
-# --- Pulizia df_servizi ---
-df_servizi['[P]Ore'] = df_servizi['[P]Ore'].apply(parse_orario)
-df_servizi['[A]Ore'] = df_servizi['[A]Ore'].apply(parse_orario)
-
-df_servizi['Data'] = df_servizi['Data'].apply(parse_data)
-df_servizi['Partenza_completa'] = df_servizi.apply(
-    lambda row: datetime.combine(row['Data'], row['[P]Ore']) if pd.notnull(row['Data']) and pd.notnull(row['[P]Ore']) else pd.NaT,
-    axis=1
-)
-df_servizi['Arrivo_completa'] = df_servizi.apply(
-    lambda row: datetime.combine(row['Data'], row['[A]Ore']) if pd.notnull(row['Data']) and pd.notnull(row['[A]Ore']) else pd.NaT,
-    axis=1
-)
-# Aggiusta arrivi oltre la mezzanotte
-mask_arrivo_mezzanotte = df_servizi['Arrivo_completa'] < df_servizi['Partenza_completa']
-df_servizi.loc[mask_arrivo_mezzanotte, 'Arrivo_completa'] += timedelta(days=1)
-
-# --- Controllo errori ---
-righe_turni_invalidi = df_turni[df_turni['Inizio_completo'].isnull() | df_turni['Fine_completo'].isnull()]
-righe_partenza_invalidi = df_servizi[df_servizi['Partenza_completa'].isnull()]
-righe_arrivo_invalidi = df_servizi[df_servizi['Arrivo_completa'].isnull()]
-
-if not righe_turni_invalidi.empty:
-    st.warning("⚠️ Alcune righe dei turni hanno problemi di orario. Controlla i valori in 'Inizio' e 'Fine'.")
-    st.dataframe(righe_turni_invalidi)
-
-if not righe_partenza_invalidi.empty:
-    st.warning("⚠️ Alcuni orari di partenza non sono validi. Controlla '[P]Ore'.")
-    st.dataframe(righe_partenza_invalidi)
-
-if not righe_arrivo_invalidi.empty:
-    st.warning("⚠️ Alcuni orari di arrivo non sono validi. Controlla '[A]Ore'.")
-    st.dataframe(righe_arrivo_invalidi)
-
-# --- Filtro date ---
+# === Intervallo di date ===
+st.sidebar.title("🎛️ Filtri")
 data_min = min(df_turni['Data'].min(), df_servizi['Data'].min())
 data_max = max(df_turni['Data'].max(), df_servizi['Data'].max())
-
 data_range = st.sidebar.date_input("Intervallo Date", [data_min, data_max])
 
-data_start = pd.to_datetime(data_range[0])
-data_end = pd.to_datetime(data_range[1])
+# Filtro per data
+if len(data_range) == 2:
+    inizio, fine = data_range
+    df_turni = df_turni[(df_turni['Data'] >= pd.to_datetime(inizio)) & (df_turni['Data'] <= pd.to_datetime(fine))]
+    df_servizi = df_servizi[(df_servizi['Data'] >= pd.to_datetime(inizio)) & (df_servizi['Data'] <= pd.to_datetime(fine))]
 
-# --- Filtro dataset ---
-turni_filtrati = df_turni[(df_turni['Data'] >= data_start.date()) & (df_turni['Data'] <= data_end.date())]
-servizi_filtrati = df_servizi[(df_servizi['Data'] >= data_start.date()) & (df_servizi['Data'] <= data_end.date())]
+# === KPI ===
+st.title("📊 Dashboard KPI - CRI Servizi & Turni")
 
-# --- Visualizzazione ---
-st.subheader("Turni filtrati")
-st.dataframe(turni_filtrati)
+col1, col2, col3 = st.columns(3)
+col1.metric("👥 Numero Turni", len(df_turni))
+col2.metric("🚑 Numero Servizi", len(df_servizi))
+col3.metric("🕒 Ore Totali", f"{df_turni['Durata'].sum() + df_servizi['Durata'].sum():.1f} h")
 
-st.subheader("Servizi filtrati")
-st.dataframe(servizi_filtrati)
+st.markdown("---")
+
+# === Tabelle Dettaglio ===
+with st.expander("📋 Dettaglio Turni"):
+    st.dataframe(df_turni[['Data', 'Inizio', 'Fine', 'Durata']])
+
+with st.expander("📋 Dettaglio Servizi"):
+    st.dataframe(df_servizi[['Data', '[P]Ore', '[A]Ore', 'Durata']])
