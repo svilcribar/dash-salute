@@ -16,8 +16,17 @@ if turni_file and servizi_file:
     df_servizi = pd.read_excel(servizi_file)
 
     # --- Preprocessing Turni ---
-    df_turni['Inizio'] = pd.to_datetime(df_turni['Data'].astype(str) + ' ' + df_turni['Inizio'].astype(str))
-    df_turni['Fine'] = pd.to_datetime(df_turni['Data'].astype(str) + ' ' + df_turni['Fine'].astype(str))
+df_turni['Data'] = pd.to_datetime(df_turni['Data'], errors='coerce')
+
+df_turni['Inizio_str'] = df_turni['Inizio'].astype(str).str.strip()
+df_turni['Fine_str'] = df_turni['Fine'].astype(str).str.strip()
+
+# Se l'orario è solo tipo "8" o "8.00", forziamo il formato con :00
+df_turni['Inizio_str'] = df_turni['Inizio_str'].str.replace(r'^(\\d{1,2})(\\.\\d+)?$', r'\\1:00', regex=True)
+df_turni['Fine_str'] = df_turni['Fine_str'].str.replace(r'^(\\d{1,2})(\\.\\d+)?$', r'\\1:00', regex=True)
+
+df_turni['Inizio'] = pd.to_datetime(df_turni['Data'].astype(str) + ' ' + df_turni['Inizio_str'], errors='coerce')
+df_turni['Fine'] = pd.to_datetime(df_turni['Data'].astype(str) + ' ' + df_turni['Fine_str'], errors='coerce')
     df_turni['Durata (h)'] = (df_turni['Fine'] - df_turni['Inizio']).dt.total_seconds() / 3600
     df_turni['Categoria Pulita'] = df_turni['Categoria'].str.extract(r"\[(.*?)\]")
 
